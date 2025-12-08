@@ -1,100 +1,124 @@
 <?php
-    use League\Csv\Reader;
-    require_once "vendor/autoload.php";
+use League\Csv\Reader;
+require_once "vendor/autoload.php";
 
-    if ($_POST) {
-        $result = "";
-        $vocali = ['a', 'e', 'i', 'o', 'u'];
-        $cognome = strtolower($_POST["cognome"]);
-        $nome = strtolower($_POST["nome"]);
-        $data = $_POST["data"];
-        $anno = substr($_POST["data"], 2, 2);
-        $mese = str_replace("0", "", substr($_POST["data"], 5, 1)) . substr($_POST["data"], 6, 1);
-        $giorno = substr($_POST["data"], 8, 2);
-        $sesso = $_POST["sesso"];
-        $luogo = $_POST["luogo-nascita"];
-        $provincia = $_POST["provincia"];
-        $car_alfa_disp = array(
-            '0' => 1, '1' => 0, '2' => 5, '3' => 7, '4' => 9, '5' => 13, '6' => 15, '7' => 17, '8' => 19, '9' => 21, 'A' => 1, 'B' => 0, 'C' => 5, 'D' => 7, 'E' => 9, 'F' => 13, 'G' => 15, 'H' => 17, 'I' => 19, 'J' => 21, 'K' => 2, 'L' => 4, 'M' => 18, 'N' => 20, 'O' => 11, 'P' => 3, 'Q' => 6, 'R' => 8, 'S' => 12, 'T' => 14, 'U' => 16, 'V' => 10, 'W' => 22, 'X' => 25, 'Y' => 24, 'Z' => 23);
-        $car_alfa_pari = array(
-            '0' => 0, 'C' => 2, 'O' => 14, '1' => 1, 'D' => 3, 'P' => 15, '2' => 2, 'E' => 4, 'Q' => 16, '3' => 3, 'F' => 5, 'R' => 17, '4' => 4, 'G' => 6, 'S' => 18, '5' => 5, 'H' => 7, 'T' => 19, '6' => 6, 'I' => 8, 'U' => 20, '7' => 7, 'J' => 9, 'V' => 21, '8' => 8, 'K' => 10, 'W' => 22, '9' => 9, 'L' => 11, 'X' => 23, 'A' => 0, 'M' => 12, 'Y' => 24, 'B' => 1, 'N' => 13, 'Z' => 25);
-        $car_resto = array(
-            0 => 'A', 10 => 'K', 20 => 'U', 1 => 'B', 11 => 'L', 21 => 'V', 2 => 'C', 12 => 'M', 22 => 'W', 3 => 'D', 13 => 'N', 23 => 'X', 4 => 'E', 14 => 'O', 24 => 'Y', 5 => 'F', 15 => 'P', 25 => 'Z', 6 => 'G', 16 => 'Q', 7 => 'H', 17 => 'R', 8 => 'I', 18 => 'S', 9 => 'J', 19 => 'T');
+/* ------------------------- Utility Functions ------------------------- */
 
+function extractCharacters(string $input, array $vowels): array
+{
+    $consonants = str_replace($vowels, "", $input);
+    $vowelsOnly = str_replace(str_split($consonants), "", $input);
+    return [$consonants, $vowelsOnly];
+}
 
-        //-----------------------  Cognome  ------------------------//
-        $flag = false;
-        foreach (str_split($cognome) as $letter) {
-            foreach ($vocali as $vocale) if ($letter == $vocale) $flag = true;
-            if (!$flag && strlen($result) < 3) $result .= strtoupper($letter);
-            else $flag = false;
-        }
-        if (strlen($result) < 3) {
-            foreach (str_split($cognome) as $letter) {
-                foreach ($vocali as $vocale) {
-                    if ($letter == $vocale) $result .= strtoupper($vocale);
-                    if (strlen($result) == 3) break 2;
-                }
-            }
-        }
+function formatSurname(string $surname, array $vowels): string
+{
+    [$cons, $vow] = extractCharacters($surname, $vowels);
 
+    if (strlen($cons) >= 3) return substr($cons, 0, 3);
+    if (strlen($cons) == 2) return $cons . ($vow[0] ?? 'X');
+    if (strlen($cons) == 1) return $cons . substr($vow . "X", 0, 2);
+    return substr($vow . "XXX", 0, 3);
+}
 
-        //-----------------------  Nome  ------------------------//
-        $flag = false;
-        $counter = "";
-        foreach (str_split($nome) as $letter) {
-            foreach ($vocali as $vocale) if ($letter == $vocale) $flag = true;
-            if (!$flag && strlen($result) < 6) {
-                $counter .= $letter;
-            } else $flag = false;
-        }
-        if (strlen($counter) < 3) {
-            $result .= strtoupper($counter);
-            foreach (str_split($nome) as $letter) {
-                foreach ($vocali as $vocale) {
-                    if ($letter == $vocale) $result .= strtoupper($vocale);
-                    if (strlen($result) == 6) break 2;
-                }
-            }
-        }
-        if (strlen($counter) == 3) {
-            $result .= strtoupper($counter);
-        }
-        if (strlen($counter) > 3) {
-            $result .= strtoupper($counter[0]);
-            $result .= strtoupper($counter[2]);
-            $result .= strtoupper($counter[3]);
-        }
+function formatName(string $name, array $vowels): string
+{
+    [$cons, $vow] = extractCharacters($name, $vowels);
 
+    if (strlen($cons) > 3) return $cons[0] . $cons[2] . $cons[3];
+    if (strlen($cons) == 3) return $cons;
+    if (strlen($cons) == 2) return $cons . ($vow[0] ?? 'X');
+    if (strlen($cons) == 1) return $cons . substr($vow . "X", 0, 2);
+    return substr($vow . "XXX", 0, 3);
+}
 
-        //-----------------------  Anno di nascita  ------------------------//
-        $result .= $anno;
+function formatDate(string $date, string $gender): string
+{
+    $dt = new DateTime($date);
+    $months = ["A", "B", "C", "D", "E", "H", "L", "M", "P", "R", "S", "T"];
 
+    $year = $dt->format("y");
+    $monthLetter = $months[(int)$dt->format("n") - 1];
+    $day = (int)$dt->format("d");
 
-        //-----------------------  Mese di nascita  ------------------------//
-        $counter = ["A", "B", "C", "D", "E", "H", "L", "M", "P", "R", "S", "T"];
-        $result .= $counter[$mese - 1];
+    if ($gender === "F") $day += 40;
 
+    return $year . $monthLetter . str_pad($day, 2, "0", STR_PAD_LEFT);
+}
 
-        //-----------------------  Giorno di nascita  ------------------------//
-        if ($sesso == "f") $giorno += 40;
-        $result .= $giorno;
+function getCityCode(string $city, string $province): ?string
+{
+    $csv = Reader::createFromPath($_SERVER['DOCUMENT_ROOT'] . "/CSV/comuni.csv", 'r');
+    $csv->setHeaderOffset(0);
 
-
-        //-----------------------  Comune di nascita  ------------------------//
-        $csv = Reader::createFromPath("CSV/comuni.csv", 'r');
-        $csv->setHeaderOffset(0);
-        $csv->setDelimiter(';');
+    $csv = Reader::createFromPath("CSV/comuni.csv", 'r');
+    $csv->setHeaderOffset(0);
+    $csv->setDelimiter(';');
         foreach ($csv->getRecords() as $record)
-            if ($record["Denominazione in italiano"] == $luogo && $record["Sigla automobilistica"] == strtoupper($provincia))
-                $result .= $record["Codice Catastale del comune"];
+            if ($record["Denominazione in italiano"] == $city && $record["Sigla automobilistica"] == strtoupper($province))
+                return $record["Codice Catastale del comune"];
 
+    return null;
+}
 
-        //-----------------------  Lettera di controllo  ------------------------//
-        $totale = 0;
-        foreach (str_split($result) as $key => $letter) {
-            if ($key % 2 == 0) $totale += $car_alfa_disp[$letter];
-            else $totale += $car_alfa_pari[$letter];
+function calculateControlChar(string $code): string
+{
+    // Values for characters in odd positions
+    $oddValues = [
+        '0'=>1, '1'=>0, '2'=>5, '3'=>7, '4'=>9, '5'=>13, '6'=>15, '7'=>17, '8'=>19, '9'=>21,
+        'A'=>1, 'B'=>0, 'C'=>5, 'D'=>7, 'E'=>9, 'F'=>13, 'G'=>15, 'H'=>17, 'I'=>19, 'J'=>21,
+        'K'=>2, 'L'=>4, 'M'=>18,'N'=>20,'O'=>11,'P'=>3, 'Q'=>6, 'R'=>8, 'S'=>12,'T'=>14,
+        'U'=>16,'V'=>10,'W'=>22,'X'=>25,'Y'=>24,'Z'=>23
+    ];
+
+    // Values for characters in EVEN positions
+    $evenValues = [
+        '0'=>0, '1'=>1, '2'=>2, '3'=>3, '4'=>4, '5'=>5, '6'=>6, '7'=>7, '8'=>8, '9'=>9,
+        'A'=>0, 'B'=>1, 'C'=>2, 'D'=>3, 'E'=>4, 'F'=>5, 'G'=>6, 'H'=>7, 'I'=>8, 'J'=>9,
+        'K'=>10,'L'=>11,'M'=>12,'N'=>13,'O'=>14,'P'=>15,'Q'=>16,'R'=>17,'S'=>18,'T'=>19,
+        'U'=>20,'V'=>21,'W'=>22,'X'=>23,'Y'=>24,'Z'=>25
+    ];
+
+    // Mapping for remainder → control letter
+    $controlMap = [
+        'A','B','C','D','E','F','G','H','I','J','K','L','M',
+        'N','O','P','Q','R','S','T','U','V','W','X','Y','Z'
+    ];
+
+    $sum = 0;
+    $chars = str_split($code);
+
+    foreach ($chars as $index => $char) {
+        $char = strtoupper($char);
+
+        if ($index % 2 === 0) {
+            // Odd position (1st, 3rd, 5th...) → oddValues
+            $sum += $oddValues[$char];
+        } else {
+            // Even position → evenValues
+            $sum += $evenValues[$char];
         }
     }
-    if(isset($result)) $result .= $car_resto[$totale %= 26];
+
+    return $controlMap[$sum % 26];
+}
+
+
+/* ----------------------- Main Computation ----------------------- */
+
+if ($_POST) {
+    $vowels = ['a', 'e', 'i', 'o', 'u'];
+
+    $surnameCode = formatSurname(strtolower($_POST['surname']), $vowels);
+    $nameCode = formatName(strtolower($_POST['name']), $vowels);
+    $dateCode = formatDate($_POST['dateOfBirth'], $_POST['gender']);
+
+    $cityCode = getCityCode($_POST['placeOfBirth'], $_POST['provinceCode']);
+    if (!$cityCode) die("City code not found.");
+
+    $partial = $surnameCode . $nameCode . $dateCode . $cityCode;
+
+    $control = calculateControlChar($partial);
+
+    $result = strtoupper($partial . $control);
+}
