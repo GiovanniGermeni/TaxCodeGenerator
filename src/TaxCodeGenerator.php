@@ -41,7 +41,8 @@ function formatDate(string $date, string $gender): string
     $monthLetter = $months[(int)$dt->format("n") - 1];
     $day = (int)$dt->format("d");
 
-    if ($gender === "F") $day += 40;
+    if ($gender === "F")
+        $day += 40;
 
     return $year . $monthLetter . str_pad($day, 2, "0", STR_PAD_LEFT);
 }
